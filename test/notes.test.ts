@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.ts";
-import { addNote, deleteNote, formatList, NotesError, type Note } from "../src/notes.ts";
+import { addNote, deleteNote, formatList, formatSearch, NotesError, searchNotes, type Note } from "../src/notes.ts";
 
 const DAY = "2026-11-06";
 const tmpFile = () => join(mkdtempSync(join(tmpdir(), "notes-")), "notes.json");
@@ -53,6 +53,40 @@ describe("cli", () => {
   });
 
   it("prints usage for unknown commands", () => {
-    expect(run(["fly"], tmpFile(), DAY).code).toBe(2);
+    const res = run(["fly"], tmpFile(), DAY);
+    expect(res.code).toBe(2);
+    expect(res.out).toContain("search");
+  });
+});
+
+describe("search", () => {
+  const sample = (): Note[] => addNote(addNote(addNote([], "buy milk", DAY), "call Ana", DAY), "Buy MILK too", DAY);
+
+  it("returns only matching notes, ignoring case, keeping ids and order", () => {
+    expect(searchNotes(sample(), "MILK").map((n) => n.id)).toEqual([1, 3]);
+    expect(searchNotes(sample(), "milk").map((n) => n.id)).toEqual([1, 3]);
+    expect(searchNotes(sample(), "ana").map((n) => n.id)).toEqual([2]);
+  });
+
+  it("refuses an empty query", () => {
+    expect(() => searchNotes(sample(), "")).toThrow(NotesError);
+    expect(() => searchNotes(sample(), "   ")).toThrow(NotesError);
+  });
+
+  it("formats matches", () => {
+    expect(formatSearch([])).toBe("No matching notes.");
+    expect(formatSearch(sample())).toBe(formatList(sample()));
+  });
+
+  it("works through the cli", () => {
+    const file = tmpFile();
+    run(["add", "buy milk"], file, DAY);
+    run(["add", "call Ana"], file, DAY);
+    expect(run(["search", "MILK"], file, DAY)).toEqual({ code: 0, out: "1. buy milk (2026-11-06)" });
+    expect(run(["search", "buy", "milk"], file, DAY).out).toBe("1. buy milk (2026-11-06)");
+    expect(run(["search", "zzz"], file, DAY)).toEqual({ code: 0, out: "No matching notes." });
+    expect(run(["search"], file, DAY).code).toBe(1);
+    expect(run(["search"], file, DAY).out).toContain("error:");
+    expect(run(["list"], file, DAY).out).toBe("1. buy milk (2026-11-06)\n2. call Ana (2026-11-06)");
   });
 });
