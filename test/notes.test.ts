@@ -31,6 +31,31 @@ describe("notes", () => {
   });
 });
 
+describe("colour", () => {
+  const GRAY = "\x1b[90m";
+  const GREEN = "\x1b[32m";
+
+  it("colours id gray and text green when asked", () => {
+    const notes = addNote([], "milk", DAY);
+    expect(formatList(notes, true)).toBe("\x1b[90m1.\x1b[0m \x1b[32mmilk\x1b[0m (2026-11-06)");
+    expect(formatList(notes, false)).toBe("1. milk (2026-11-06)");
+    expect(formatList(notes)).toBe("1. milk (2026-11-06)");
+  });
+
+  it("does not colour the empty message", () => {
+    expect(formatList([], true)).toBe("No notes yet.");
+  });
+
+  it("cli list colours only when asked", () => {
+    const file = tmpFile();
+    run(["add", "milk"], file, DAY);
+    const coloured = run(["list"], file, DAY, true).out;
+    expect(coloured).toContain(GRAY);
+    expect(coloured).toContain(GREEN);
+    expect(run(["list"], file, DAY).out).not.toContain("\x1b[");
+  });
+});
+
 describe("cli", () => {
   it("adds and lists notes in the file", () => {
     const file = tmpFile();
