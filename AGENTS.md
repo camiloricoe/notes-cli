@@ -16,3 +16,14 @@ Node runs the TypeScript directly (type stripping), so there is no build step.
 ## Factory rules
 - Phase state lives in `.factory/` as markdown files. Never put plan or review text in code comments.
 - Only the paths in SCOPE (factory.conf) may change. Do not touch factory.sh, lib/, gates/, .claude/, package.json or this file.
+
+## Exact commands (copy them exactly)
+- Test: `npm test --silent` (the TEST_CMD). Lint/type check: `npm run lint --silent` (the LINT_CMD).
+- Run them exactly as written: no `cd`, no env vars, no pipes or `&&`, no other spelling.
+  Anything else is blocked by the factory and the run is rejected.
+
+## Review scope
+- Security findings are about the diff (`git diff main`). Files the change did not touch,
+  such as factory.conf, are out of scope for the review.
+- Prefer the smallest change that fully meets the ticket; every gate in gates/ must pass.
+
