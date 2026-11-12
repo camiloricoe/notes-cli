@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.ts";
-import { addNote, deleteNote, formatList, NotesError, type Note } from "../src/notes.ts";
+import { addNote, deleteNote, filterByTag, formatList, NotesError, type Note } from "../src/notes.ts";
 
 const DAY = "2026-11-06";
 const tmpFile = () => join(mkdtempSync(join(tmpdir(), "notes-")), "notes.json");
@@ -28,6 +28,58 @@ describe("notes", () => {
   it("formats a list", () => {
     expect(formatList([])).toBe("No notes yet.");
     expect(formatList(addNote([], "milk", DAY))).toBe("1. milk (2026-11-06)");
+  });
+});
+
+describe("tags", () => {
+  it("stores tags trimmed, lowercased and unique", () => {
+    const [n] = addNote([], "x", DAY, [" Work ", "work", "Urgent"]);
+    expect(n.tags).toEqual(["work", "urgent"]);
+  });
+
+  it("adds no tags field without tags", () => {
+    expect(addNote([], "x", DAY)[0]).toEqual({ id: 1, text: "x", created: DAY });
+  });
+
+  it("refuses blank tags", () => {
+    expect(() => addNote([], "x", DAY, ["  "])).toThrow(NotesError);
+    expect(() => addNote([], "x", DAY, [""])).toThrow("a tag cannot be empty");
+  });
+
+  it("filters by tag, ignoring case and legacy notes", () => {
+    const notes = addNote(addNote([], "a", DAY, ["Work"]), "b", DAY);
+    expect(filterByTag(notes, "WORK").map((n) => n.id)).toEqual([1]);
+  });
+
+  it("formats tags after the date", () => {
+    expect(formatList(addNote([], "milk", DAY, ["home", "shop"]))).toBe("1. milk (2026-11-06) [home, shop]");
+    expect(formatList(addNote([], "milk", DAY))).toBe("1. milk (2026-11-06)");
+  });
+});
+
+describe("cli tags", () => {
+  it("adds with repeated tags and lists them", () => {
+    const file = tmpFile();
+    expect(run(["add", "--tag", "work", "--tag", "urgent", "call", "Ana"], file, DAY)).toEqual({ code: 0, out: "Added note 1." });
+    expect(run(["list"], file, DAY).out).toBe("1. call Ana (2026-11-06) [work, urgent]");
+  });
+
+  it("lists only notes with the tag", () => {
+    const file = tmpFile();
+    run(["add", "--tag", "work", "a"], file, DAY);
+    run(["add", "b"], file, DAY);
+    expect(run(["list", "--tag", "work"], file, DAY).out).toBe("1. a (2026-11-06) [work]");
+  });
+
+  it("reports when no note has the tag", () => {
+    expect(run(["list", "--tag", "nope"], tmpFile(), DAY)).toEqual({ code: 0, out: 'No notes with tag "nope".' });
+  });
+
+  it("handles missing values", () => {
+    const res = run(["list", "--tag"], tmpFile(), DAY);
+    expect(res.code).toBe(2);
+    expect(res.out).toContain("usage:");
+    expect(run(["add", "--tag", "work"], tmpFile(), DAY)).toEqual({ code: 1, out: "error: a note needs some text" });
   });
 });
 
